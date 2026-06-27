@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Linux Server Monitor</title>
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+</head>
+<body class="bg-slate-50 text-slate-800 font-sans min-h-screen p-6 flex flex-col items-center justify-start gap-6">
+
+    <div class="w-full max-w-5xl bg-white rounded-xl shadow-sm p-8 border border-slate-200">
+        <h1 class="text-3xl font-bold text-emerald-600 mb-2 flex items-center gap-2">
+            🐧 Linux Resource & Daemon Monitor
+        </h1>
+        
+        <div class="flex flex-wrap gap-6 text-slate-500 mb-6 text-sm">
+            <p>System Uptime: <span id="uptime" class="text-slate-900 font-mono font-semibold">Loading...</span></p>
+            <p>•</p>
+            <p>Local IP: <span id="localIp" class="text-emerald-600 font-mono font-semibold">Loading...</span></p>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+            <div class="bg-slate-50 p-5 rounded-lg border border-slate-200">
+                <h3 class="text-slate-500 text-sm font-semibold mb-2">CPU Load (1 min)</h3>
+                <div id="cpuLoad" class="text-4xl font-mono font-bold text-amber-600">0.00</div>
+            </div>
+
+            <div class="bg-slate-50 p-5 rounded-lg border border-slate-200">
+                <h3 class="text-slate-500 text-sm font-semibold mb-2">RAM Usage</h3>
+                <div id="memory" class="text-xl font-mono font-bold text-blue-600 mt-2">0 / 0 MB</div>
+            </div>
+
+            <div class="bg-slate-50 p-5 rounded-lg border border-slate-200">
+                <h3 class="text-slate-500 text-sm font-semibold mb-2">Disk Space (/)</h3>
+                <div id="disk" class="text-xl font-mono font-bold text-purple-600 mt-2">0 / 0 GB</div>
+            </div>
+
+            <div class="bg-slate-50 p-5 rounded-lg border border-slate-200">
+                <h3 class="text-slate-500 text-sm font-semibold mb-2">Network I/O</h3>
+                <div class="text-sm font-mono mt-1 text-slate-700">Recevice: <span id="networkRx" class="text-emerald-600 font-bold">0 MB</span></div>
+                <div class="text-sm font-mono mt-1 text-slate-700">Transmit: <span id="networkTx" class="text-sky-600 font-bold">0 MB</span></div>
+            </div>
+        </div>
+
+        <h2 class="text-xl font-bold text-slate-800 mb-4 flex items-center gap-2">
+            ⚙️ systemd Background Daemons
+        </h2>
+        <div class="overflow-x-auto bg-white rounded-lg border border-slate-200">
+            <table class="w-full text-left text-sm text-slate-700">
+                <thead class="bg-slate-100 text-slate-600 text-xs uppercase font-semibold border-b border-slate-200">
+                    <tr>
+                        <th class="p-4">Daemon Service</th>
+                        <th class="p-4">Description</th>
+                        <th class="p-4 text-center">Status</th>
+                    </tr>
+                </thead>
+                <tbody id="daemonTableBody">
+                    </tbody>
+            </table>
+        </div>
+    </div>
+
+    <script>
+        async function fetchMetrics() {
+            try {
+                const resMetrics = await fetch('/api/metrics');
+                const data = await resMetrics.json();
+
+                document.getElementById('uptime').innerText = data.uptime || "Unknown";
+                document.getElementById('localIp').innerText = data.localIp || "127.0.0.1";
+                document.getElementById('cpuLoad').innerText = data.cpuLoad || "0.00";
+                document.getElementById('memory').innerText = `${data.memoryUsed} / ${data.memoryTotal}`;
+                document.getElementById('disk').innerText = `${data.diskUsed} / ${data.diskTotal}`;
+                document.getElementById('networkRx').innerText = data.networkRx;
+                document.getElementById('networkTx').innerText = data.networkTx;
+            } catch (e) { console.error("Error fetching metrics:", e); }
+        }
+
+        async function fetchServices() {
+            try {
+                const resServices = await fetch('/api/services');
+                const services = await resServices.json();
+
+                const tableBody = document.getElementById('daemonTableBody');
+                tableBody.innerHTML = ""; 
+
+                services.forEach(srv => {
+                    // Styled light badges without animations
+                    let badgeClass = "bg-slate-100 text-slate-700 border border-slate-300";
+                    if (srv.status === "active") {
+                        badgeClass = "bg-emerald-100 text-emerald-800 border border-emerald-200";
+                    } else if (srv.status === "inactive") {
+                        badgeClass = "bg-slate-100 text-slate-500 border border-slate-200";
+                    } else if (srv.status === "failed") {
+                        badgeClass = "bg-rose-100 text-rose-800 border border-rose-200";
+                    }
+
+                    const row = `
+                        <tr class="border-b border-slate-200 hover:bg-slate-50 transition-colors">
+                            <td class="p-4 font-mono font-bold text-slate-900">${srv.name}.service</td>
+                            <td class="p-4 text-slate-600">${srv.description}</td>
+                            <td class="p-4 text-center">
+                                <span class="px-2.5 py-1 rounded-full text-xs font-semibold capitalize ${badgeClass}">
+                                    ${srv.status}
+                                </span>
+                            </td>
+                        </tr>
+                    `;
+                    tableBody.innerHTML += row;
+                });
+            } catch (e) { console.error("Error fetching services:", e); }
+        }
+
+        function updateAll() {
+            fetchMetrics();
+            fetchServices();
+        }
+
+        updateAll();
+        setInterval(updateAll, 3000);
+    </script>
+</body>
+</html>
